@@ -1,5 +1,8 @@
 > [!IMPORTANT]
-> The 100-million-row challenge is now **live**. You have until March 15, 11:59PM CET to submit your entry! Check out [leaderboard.csv](./leaderboard.csv) for actual results. Comment on your PR with `/bench` to request a re-run!
+> - The challenge is live; you have until March 15, 11:59PM CET to submit your entry. 
+> - Check out [the Leaderboard](https://marcosmarcolin.github.io/leaderboard-100-million-row-challenge/) (props to [Marcos](https://github.com/marcosmarcolin)). 
+> - Comment on your PR with `/bench` to request a re-run.
+> - [Join our Discord](https://tempestphp.com/discord) and then come to [this thread](https://discord.com/channels/1236153076688359495/1476516330017394829) to discuss the challenge with other participants.
     
 Welcome to the 100-million-row challenge in PHP! Your goal is to parse a data set of page visits into a JSON file. This repository contains all you need to get started locally. Submitting an entry is as easy as sending a pull request to this repository. This competition will run for two weeks: from Feb 24 to March 15, 2026. When it's done, the top three fastest solutions will win a prize; there's also a dedicated prize for a single-core solution, and a participation prize that everyone can win! 
 
@@ -78,7 +81,7 @@ Send a pull request to this repository with your solution. The title of your pul
 > [!IMPORTANT]
 > You can request a re-run by writing a comment on your PR saying `/bench`. We'll still manually verify whether your submission can be run.
 
-If you rather want to participate in the single-thread challenge, please mention this in your PR so that we can add the [🚂 single thread](https://github.com/tempestphp/100-million-row-challenge/issues?q=state%3Aopen%20label%3A%22%F0%9F%9A%82%20single%20thread%22) label.
+If you rather want to participate in the single-thread challenge, please mention this in your PR so that we can add the [🚂 single thread](https://github.com/tempestphp/100-million-row-challenge/issues?q=state%3Aopen%20label%3A%22%F0%9F%9A%82%20single%20thread%22) label. You're allowed to submit an entry for both single-thread and multi-thread solutions. You can only win one prize though, so if you win in both categories, second place single-thread will be given the prize.
 
 ## A note on copying other branches
 
@@ -125,7 +128,17 @@ All entries must be submitted before March 16, 2026 (so you have until March 15,
 
 #### Where can I see the results?
 
-The benchmark results of each run are stored in [leaderboard.csv](./leaderboard.csv). 
+The benchmark results of each run are stored in [leaderboard.csv](./leaderboard.csv) and [leaderboard-single-thread.csv](./leaderboard-single-thread.csv).
+
+#### What am I allowed to do and what not?
+
+You're encouraged to think outside the box 🙂 That being said: 
+
+- your solution must validate against the real data set (no altering allowed)
+- it must be written only in PHP
+- it may not use tools outside of PHP
+- you may not access the internet from within your script
+- your script may only work within the project's directory
 
 #### What kind of server is used for the benchmark?
 
@@ -135,11 +148,11 @@ The benchmark runs on a Mac Mini M1 with 12GB of RAM of available memory. These 
 bcmath, bz2, calendar, Core, ctype, curl, date, dba, dom, exif, fileinfo, filter, ftp, gd, gettext, gmp, hash, iconv, igbinary, intl, json, ldap, lexbor, libxml, mbstring, mysqli, mysqlnd, odbc, openssl, pcntl, pcre, PDO, pdo_dblib, pdo_mysql, PDO_ODBC, pdo_pgsql, pdo_sqlite, pgsql, Phar, posix, random, readline, Reflection, session, shmop, SimpleXML, snmp, soap, sockets, sodium, SPL, sqlite3, standard, sysvmsg, sysvsem, sysvshm, tidy, tokenizer, uri, xml, xmlreader, xmlwriter, xsl, Zend OPcache, zip, zlib, Zend OPcache
 ```
 
+![Story and the Server](./.github/stormy.png)
+
 #### How to ensure fair results?
 
 Each submission will be manually verified before its benchmark is run on the benchmark server. We'll also only ever run one single submission at a time to prevent any bias in the results. Additionally, we'll use a consistent, dedicated server to run benchmarks on to ensure that the results are comparable.
-
-If needed, multiple runs will be performed for the top submissions, and their average will be compared. When the challenge is done, the top-5 results will be run multiple times, and we'll take their average result to determine the final score. 
 
 Finally, everyone is asked to respect other participant's entries. You can look at others for inspiration (simply because there's no way we can prevent that from happening), but straight-up copying other entries is prohibited. We'll try our best to watch over this. If you run into any issues, feel free to tag @brendt or @xHeaven in the PR comments.
 
