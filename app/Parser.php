@@ -8,6 +8,8 @@ use function array_fill;
 use function chr;
 use function fclose;
 use function fgets;
+use function file_get_contents;
+use function file_put_contents;
 use function filesize;
 use function fopen;
 use function fread;
@@ -15,25 +17,23 @@ use function fseek;
 use function ftell;
 use function fwrite;
 use function gc_disable;
+use function getmypid;
 use function ini_set;
 use function pack;
 use function pcntl_fork;
 use function pcntl_wait;
-use function stream_get_contents;
-use function stream_set_chunk_size;
 use function stream_set_read_buffer;
 use function stream_set_write_buffer;
-use function stream_socket_pair;
 use function strlen;
 use function strpos;
 use function strrpos;
 use function str_replace;
 use function substr;
+use function sys_get_temp_dir;
+use function unlink;
 use function unpack;
 use const SEEK_CUR;
-use const STREAM_IPPROTO_IP;
-use const STREAM_PF_UNIX;
-use const STREAM_SOCK_STREAM;
+use const WNOHANG;
 
 final class Parser
 {
@@ -98,43 +98,35 @@ final class Parser
         fclose($fh);
         $bnd[] = $sz;
 
-        $cells = $pc * $dc;
-        $socks = [];
-        for ($w = 0; $w < self::W - 1; $w++) {
-            $socks[$w] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        }
-
+        $pfx = sys_get_temp_dir() . "/p_" . getmypid() . "_";
+        $cmap = [];
         for ($w = 0; $w < self::W - 1; $w++) {
             $pid = pcntl_fork();
             if ($pid === 0) {
                 gc_disable();
-                for ($j = 0; $j < self::W - 1; $j++)
-                    fclose($socks[$j][0]);
-                for ($j = 0; $j < self::W - 1; $j++)
-                    if ($j !== $w)
-                        fclose($socks[$j][1]);
                 $wc = static::crunch($in, $bnd[$w], $bnd[$w + 1], $pi, $db, $pc, $dc);
-                fwrite($socks[$w][1], pack('v*', ...$wc));
-                fclose($socks[$w][1]);
+                file_put_contents($pfx . $w, pack('v*', ...$wc));
                 exit(0);
             }
+            $cmap[$pid] = $w;
         }
 
-        for ($w = 0; $w < self::W - 1; $w++)
-            fclose($socks[$w][1]);
-
         $counts = static::crunch($in, $bnd[self::W - 1], $bnd[self::W], $pi, $db, $pc, $dc);
-
-        for ($w = 0; $w < self::W - 1; $w++) {
-            $data = stream_get_contents($socks[$w][0]);
-            fclose($socks[$w][0]);
-            $wc = unpack('v*', $data);
+        $pend = self::W - 1;
+        while ($pend > 0) {
+            $pid = pcntl_wait($st, WNOHANG);
+            if ($pid <= 0)
+                $pid = pcntl_wait($st);
+            if (!isset($cmap[$pid]))
+                continue;
+            $w = $cmap[$pid];
+            $wc = unpack('v*', file_get_contents($pfx . $w));
+            unlink($pfx . $w);
             $j = 0;
             foreach ($wc as $v)
                 $counts[$j++] += $v;
+            $pend--;
         }
-        for ($w = 0; $w < self::W - 1; $w++)
-            pcntl_wait($st);
 
         $dp = [];
         for ($d = 0; $d < $dc; $d++)
