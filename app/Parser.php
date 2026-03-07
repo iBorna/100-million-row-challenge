@@ -1,9 +1,8 @@
-﻿<?php
+<?php
 
 namespace App;
 
 use App\Commands\Visit;
-use function array_fill;
 use function array_values;
 use function chr;
 use function count;
@@ -19,7 +18,6 @@ use function getmypid;
 use function ini_set;
 use function pcntl_fork;
 use function pcntl_wait;
-use function shmop_close;
 use function shmop_delete;
 use function shmop_open;
 use function shmop_read;
@@ -52,14 +50,14 @@ final class Parser
         $db = [];
         $dl = [];
         for ($y = 21; $y <= 26; $y++) {
-            $y1 = (string) ($y % 10);
             for ($m = 1; $m <= 12; $m++) {
                 $md = match ($m) { 2 => $y === 24 ? 29 : 28, 4, 6, 9, 11 => 30, default => 31};
                 $ms = ($m < 10 ? '0' : '') . $m;
                 for ($d = 1; $d <= $md; $d++) {
                     $ds = ($d < 10 ? '0' : '') . $d;
-                    $db[$y1 . '-' . $ms . '-' . $ds] = $dc;
-                    $dl[$dc++] = '20' . $y . '-' . $ms . '-' . $ds;
+                    $k = $y . '-' . $ms . '-' . $ds;
+                    $db[$k] = $dc;
+                    $dl[$dc++] = '20' . $k;
                 }
             }
         }
@@ -125,6 +123,7 @@ final class Parser
                 $key = 0x1000 + $w;
             $shmIds[$w] = shmop_open($key, 'c', 0600, $cells);
         }
+
         $pidMap = [];
         for ($w = 0; $w < self::W - 1; $w++) {
             $pid = pcntl_fork();
@@ -132,8 +131,6 @@ final class Parser
                 gc_disable();
                 $blob = static::crunchWorker($in, $bnd, $w, self::W, $pb, $db, $cells, $nx);
                 shmop_write($shmIds[$w], $blob, 0);
-                for ($j = 0; $j < self::W - 1; $j++)
-                    shmop_close($shmIds[$j]);
                 exit(0);
             }
             $pidMap[$pid] = $w;
@@ -154,7 +151,6 @@ final class Parser
             foreach (unpack('C*', $blob) as $v)
                 $counts[$j++] += $v;
             shmop_delete($shmIds[$w]);
-            shmop_close($shmIds[$w]);
             $rem--;
         }
 
@@ -243,87 +239,87 @@ final class Parser
             }
 
             $step = ($ln > 0 && $ch[$ln - 1] === "\r") ? 53 : 52;
-
             $p = 25;
-            $f = $ln - 900;
+            $f = $ln - 2000;
+
             while ($p < $f) {
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
 
                 $c = strpos($ch, ',', $p);
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
             }
@@ -332,7 +328,7 @@ final class Parser
                 $c = strpos($ch, ',', $p);
                 if ($c === false || $c >= $ln)
                     break;
-                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 4, 7)];
+                $idx = $pb[substr($ch, $p, $c - $p)] + $db[substr($ch, $c + 3, 8)];
                 $cnt[$idx] = $nx[$cnt[$idx]];
                 $p = $c + $step;
             }
