@@ -169,8 +169,10 @@ final class Parser
 
             for ($w = 0; $w < self::W; $w++) {
                 @shmop_delete($rShm[$w]);
+                @shmop_close($rShm[$w]);
             }
             @shmop_delete($cShm);
+            @shmop_close($cShm);
             if ($sem) @sem_remove($sem);
         } else {
             $cnt = str_repeat("\0", $cells);
