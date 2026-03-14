@@ -8,33 +8,33 @@ use function chr;
 use function chunk_split;
 use function count;
 use function fclose;
+use function feof;
 use function fgets;
-use function file_get_contents;
-use function file_put_contents;
 use function fopen;
 use function fread;
 use function fseek;
 use function ftell;
 use function fwrite;
 use function gc_disable;
-use function getmypid;
 use function ini_set;
 use function pcntl_fork;
 use function pcntl_wait;
 use function sodium_add;
 use function str_repeat;
 use function str_replace;
+use function stream_select;
+use function stream_set_chunk_size;
 use function stream_set_read_buffer;
 use function stream_set_write_buffer;
 use function strlen;
 use function strpos;
 use function strrpos;
 use function substr;
-use function sys_get_temp_dir;
-use function unlink;
 use function unpack;
 use const SEEK_CUR;
-use const WNOHANG;
+use const STREAM_IPPROTO_IP;
+use const STREAM_PF_UNIX;
+use const STREAM_SOCK_STREAM;
 
 final class Parser
 {
@@ -108,6 +108,7 @@ final class Parser
         }
         $tailOffset = 26 + $tailLength;
         $cells = $pc * $dc;
+        $blobSize = $cells * 2;
 
         $grain = 1 << 23;
         $bnd = [];
@@ -129,28 +130,43 @@ final class Parser
         $bnd[] = $sz;
         fclose($fh);
 
-        $tmpDir = sys_get_temp_dir();
-        $myPid  = getmypid();
-        $tmpFiles = [];
-        for ($w = 0; $w < self::W - 1; $w++)
-            $tmpFiles[$w] = $tmpDir . '/p100m_' . $myPid . '_' . $w;
+        $sockets = [];
+        for ($w = 0; $w < self::W - 1; $w++) {
+            $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+            stream_set_chunk_size($pair[0], $blobSize);
+            stream_set_chunk_size($pair[1], $blobSize);
+            $sockets[$w] = $pair;
+        }
 
-        $pidMap = [];
         for ($w = 0; $w < self::W - 1; $w++) {
             $pid = pcntl_fork();
             if ($pid === 0) {
                 gc_disable();
+
+                for ($j = 0; $j < self::W - 1; $j++) fclose($sockets[$j][0]);
+                for ($j = 0; $j < self::W - 1; $j++) if ($j !== $w) fclose($sockets[$j][1]);
+
                 $blob = static::crunchWorker(
                     $in, $bnd, $w, self::W,
                     $slugMap, $db, $cells, $nx,
                     $tailOffset, $tailLength, $maxStride, $mask
                 );
-                file_put_contents($tmpFiles[$w], chunk_split($blob, 1, "\0"));
+
+                $blob16 = chunk_split($blob, 1, "\0");
+                unset($blob);
+                $len = strlen($blob16);
+                $written = 0;
+                while ($written < $len) {
+                    $n = fwrite($sockets[$w][1], substr($blob16, $written));
+                    if ($n === false || $n === 0) break;
+                    $written += $n;
+                }
+                fclose($sockets[$w][1]);
                 exit(0);
             }
-            $pidMap[$pid] = $w;
         }
 
+        for ($w = 0; $w < self::W - 1; $w++) fclose($sockets[$w][1]);
         $baseBlob = static::crunchWorker(
             $in, $bnd, self::W - 1, self::W,
             $slugMap, $db, $cells, $nx,
@@ -159,18 +175,31 @@ final class Parser
         $merged = chunk_split($baseBlob, 1, "\0");
         unset($baseBlob);
 
-        $pending = count($pidMap);
-        while ($pending > 0) {
-            $pid = pcntl_wait($st, WNOHANG);
-            if ($pid <= 0) {
-                $pid = pcntl_wait($st);
+        $buffers = [];
+        $readers = [];
+        for ($w = 0; $w < self::W - 1; $w++) {
+            $buffers[$w] = '';
+            $readers[$w] = $sockets[$w][0];
+        }
+
+        $write = []; $except = [];
+        while ($readers) {
+            $read = array_values($readers);
+            stream_select($read, $write, $except, 5);
+            foreach ($read as $sock) {
+                $key = array_search($sock, $readers, true);
+                $data = fread($sock, $blobSize);
+                if ($data !== false && $data !== '') $buffers[$key] .= $data;
+                if (feof($sock)) {
+                    fclose($sock);
+                    unset($readers[$key]);
+                }
             }
-            if (!isset($pidMap[$pid])) continue;
-            $w = $pidMap[$pid];
-            $blob = file_get_contents($tmpFiles[$w]);
-            unlink($tmpFiles[$w]);
-            sodium_add($merged, $blob);
-            $pending--;
+        }
+
+        for ($w = 0; $w < self::W - 1; $w++) {
+            sodium_add($merged, $buffers[$w]);
+            unset($buffers[$w]);
         }
 
         $counts = array_values(unpack('v*', $merged));
