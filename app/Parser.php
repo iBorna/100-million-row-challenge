@@ -34,13 +34,11 @@ use function strrpos;
 use function substr;
 use function unpack;
 use const SEEK_CUR;
-use const SEEK_END;
 
 final class Parser
 {
 
     private const W    = 8;
-    private const CH   = 40;
     private const C    = 131_072;
     private const SHIFT = 20;
 
@@ -112,21 +110,32 @@ final class Parser
         $tailOffset = 26 + $tailLength;
         $cells = $pc * $dc;
 
-        $bnd = [0];
-        for ($i = 1; $i < self::CH; $i++) {
-            fseek($fh, (int)($sz * $i / self::CH));
-            fgets($fh);
-            $bnd[] = ftell($fh);
+        $grain = 1 << 23;
+        $bnd = [];
+        $tmpH = fopen($in, 'rb');
+        stream_set_read_buffer($tmpH, 0);
+        $lo = 0;
+        while ($lo < $sz) {
+            $hi = min($lo + $grain, $sz);
+            if ($lo === 0) {
+                $bnd[] = 0;
+            } else {
+                fseek($tmpH, $lo);
+                fgets($tmpH);
+                $bnd[] = ftell($tmpH);
+            }
+            $lo = $hi;
         }
-        fclose($fh);
+        fclose($tmpH);
         $bnd[] = $sz;
+        fclose($fh);
 
         $myPid  = getmypid();
         $shmIds = [];
         for ($w = 0; $w < self::W - 1; $w++) {
             $key        = (($myPid & 0x3FFF) << 4) | $w;
             if ($key <= 0) $key = 0x1000 + $w;
-            $shmIds[$w] = shmop_open($key, 'c', 0600, $cells);
+            $shmIds[$w] = shmop_open($key, 'c', 0600, $cells * 2);
         }
 
         $pidMap = [];
@@ -139,7 +148,7 @@ final class Parser
                     $slugMap, $db, $cells, $nx,
                     $tailOffset, $tailLength, $maxStride, $mask
                 );
-                shmop_write($shmIds[$w], $blob, 0);
+                shmop_write($shmIds[$w], chunk_split($blob, 1, "\0"), 0);
                 exit(0);
             }
             $pidMap[$pid] = $w;
@@ -159,9 +168,9 @@ final class Parser
             $pid = pcntl_wait($st);
             if (!isset($pidMap[$pid])) continue;
             $w    = $pidMap[$pid];
-            $blob = shmop_read($shmIds[$w], 0, $cells);
+            $blob = shmop_read($shmIds[$w], 0, $cells * 2);
             shmop_delete($shmIds[$w]);
-            sodium_add($merged, chunk_split($blob, 1, "\0"));
+            sodium_add($merged, $blob);
             $rem--;
         }
 
