@@ -40,11 +40,8 @@ final class Parser
 {
 
     private const W    = 8;
-
     private const CH   = 40;
-
     private const C    = 131_072;
-
     private const SHIFT = 20;
 
     public function parse(string $in, string $out): void
