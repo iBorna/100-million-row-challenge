@@ -39,7 +39,10 @@ final class Parser
 {
 
     private const W    = 8;
+
+
     private const C    = 131_072;
+
     private const SHIFT = 20;
 
     public function parse(string $in, string $out): void
@@ -135,7 +138,7 @@ final class Parser
         for ($w = 0; $w < self::W - 1; $w++) {
             $key        = (($myPid & 0x3FFF) << 4) | $w;
             if ($key <= 0) $key = 0x1000 + $w;
-            $shmIds[$w] = shmop_open($key, 'c', 0600, $cells * 2);
+            $shmIds[$w] = shmop_open($key, 'c', 0600, $cells);
         }
 
         $pidMap = [];
@@ -148,7 +151,7 @@ final class Parser
                     $slugMap, $db, $cells, $nx,
                     $tailOffset, $tailLength, $maxStride, $mask
                 );
-                shmop_write($shmIds[$w], chunk_split($blob, 1, "\0"), 0);
+                shmop_write($shmIds[$w], $blob, 0);
                 exit(0);
             }
             $pidMap[$pid] = $w;
@@ -168,9 +171,9 @@ final class Parser
             $pid = pcntl_wait($st);
             if (!isset($pidMap[$pid])) continue;
             $w    = $pidMap[$pid];
-            $blob = shmop_read($shmIds[$w], 0, $cells * 2);
+            $blob = shmop_read($shmIds[$w], 0, $cells);
             shmop_delete($shmIds[$w]);
-            sodium_add($merged, $blob);
+            sodium_add($merged, chunk_split($blob, 1, "\0"));
             $rem--;
         }
 
