@@ -9,6 +9,8 @@ use function chunk_split;
 use function count;
 use function fclose;
 use function fgets;
+use function file_get_contents;
+use function file_put_contents;
 use function fopen;
 use function fread;
 use function fseek;
@@ -19,10 +21,6 @@ use function getmypid;
 use function ini_set;
 use function pcntl_fork;
 use function pcntl_wait;
-use function shmop_delete;
-use function shmop_open;
-use function shmop_read;
-use function shmop_write;
 use function sodium_add;
 use function str_repeat;
 use function str_replace;
@@ -32,17 +30,16 @@ use function strlen;
 use function strpos;
 use function strrpos;
 use function substr;
+use function sys_get_temp_dir;
+use function unlink;
 use function unpack;
 use const SEEK_CUR;
+use const WNOHANG;
 
 final class Parser
 {
-
-    private const W    = 8;
-
-
-    private const C    = 131_072;
-
+    private const W     = 8;
+    private const C     = 131_072;
     private const SHIFT = 20;
 
     public function parse(string $in, string $out): void
@@ -58,7 +55,7 @@ final class Parser
                 $md = match ($m) { 2 => $y === 4 ? 29 : 28, 4, 6, 9, 11 => 30, default => 31 };
                 $ms = ($m < 10 ? '0' : '') . $m;
                 for ($d = 1; $d <= $md; $d++) {
-                    $ds  = ($d < 10 ? '0' : '') . $d;
+                    $ds = ($d < 10 ? '0' : '') . $d;
                     $db[$y . '-' . $ms . '-' . $ds] = $dc;
                     $dl[$dc++] = '202' . $y . '-' . $ms . '-' . $ds;
                 }
@@ -109,7 +106,6 @@ final class Parser
             if ($stride > $maxStride) $maxStride = $stride;
             $slugMap[substr('https://stitcher.io/blog/' . $pl[$p], -$tailLength)] = ($stride << self::SHIFT) | ($p * $dc);
         }
-
         $tailOffset = 26 + $tailLength;
         $cells = $pc * $dc;
 
@@ -133,13 +129,11 @@ final class Parser
         $bnd[] = $sz;
         fclose($fh);
 
+        $tmpDir = sys_get_temp_dir();
         $myPid  = getmypid();
-        $shmIds = [];
-        for ($w = 0; $w < self::W - 1; $w++) {
-            $key        = (($myPid & 0x3FFF) << 4) | $w;
-            if ($key <= 0) $key = 0x1000 + $w;
-            $shmIds[$w] = shmop_open($key, 'c', 0600, $cells);
-        }
+        $tmpFiles = [];
+        for ($w = 0; $w < self::W - 1; $w++)
+            $tmpFiles[$w] = $tmpDir . '/p100m_' . $myPid . '_' . $w;
 
         $pidMap = [];
         for ($w = 0; $w < self::W - 1; $w++) {
@@ -151,7 +145,7 @@ final class Parser
                     $slugMap, $db, $cells, $nx,
                     $tailOffset, $tailLength, $maxStride, $mask
                 );
-                shmop_write($shmIds[$w], $blob, 0);
+                file_put_contents($tmpFiles[$w], chunk_split($blob, 1, "\0"));
                 exit(0);
             }
             $pidMap[$pid] = $w;
@@ -162,19 +156,21 @@ final class Parser
             $slugMap, $db, $cells, $nx,
             $tailOffset, $tailLength, $maxStride, $mask
         );
-
         $merged = chunk_split($baseBlob, 1, "\0");
         unset($baseBlob);
 
-        $rem = self::W - 1;
-        while ($rem > 0) {
-            $pid = pcntl_wait($st);
+        $pending = count($pidMap);
+        while ($pending > 0) {
+            $pid = pcntl_wait($st, WNOHANG);
+            if ($pid <= 0) {
+                $pid = pcntl_wait($st);
+            }
             if (!isset($pidMap[$pid])) continue;
-            $w    = $pidMap[$pid];
-            $blob = shmop_read($shmIds[$w], 0, $cells);
-            shmop_delete($shmIds[$w]);
-            sodium_add($merged, chunk_split($blob, 1, "\0"));
-            $rem--;
+            $w = $pidMap[$pid];
+            $blob = file_get_contents($tmpFiles[$w]);
+            unlink($tmpFiles[$w]);
+            sodium_add($merged, $blob);
+            $pending--;
         }
 
         $counts = array_values(unpack('v*', $merged));
@@ -253,7 +249,6 @@ final class Parser
             }
 
             $p = $ln;
-
             $f = $maxStride * 16 + $tailOffset;
 
             while ($p > $f) {
