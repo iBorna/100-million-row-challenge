@@ -41,7 +41,6 @@ final class Parser
     public function parse(string $in, string $out): void
     {
         gc_disable();
-
         $dateIds = [];
         $datePrefixes = [];
         $dateCount = 0;
